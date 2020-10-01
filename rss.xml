@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"
+    xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>superbaud.org</title>
+        <link>https://superbaud.org</link>
+        <description><![CDATA[Kia's blog]]></description>
+        <atom:link href="https://superbaud.org/rss.xml" rel="self"
+                   type="application/rss+xml" />
+        <lastBuildDate>Fri, 16 Apr 2021 00:00:00 UT</lastBuildDate>
+        <item>
+    <title>AD9363, Part 1</title>
+    <link>https://superbaud.org/posts/AD9363-part-1.html</link>
+    <description><![CDATA[<p>I’m designing a prototype Mode-A/C/S 1030MHz receiver so I can start testing demodulation algorithms (with real signals) and implementing them as gateware. In a previous post I mentioned multiple candidate receiver topologies and for simplicity’s sake, I’ve decided to go with the AD9363 approach. The AD9363 might not give me enough dynamic range to meet the standard’s requirements, but it’s enough to get started with algorithm development/testing.</p>
+<p>I’m planning to use an ECP5 FPGA for the baseband processor because they’re well-supported by the yosys/nextpnr open-source FPGA toolchain. I already have an ECP5 evaluation board (the one from Lattice without the PCIe edge connector), so I’m currently designing an AD9363 board that can plug into that evaluation board’s pin headers.</p>
+<p>Today I planned out the power supplies for the AD9363. I’d just copy what the reference manual suggests, but I can’t do that exactly because this ECP5 board lets me set the FPGA’s VCCIO to 2.5V but not to 1.8V. Honestly I don’t know to develop a preference for VCCIO voltage; given the AD9363 and the ECP5 both seem pretty flexible about it. Is a smaller voltage better? I don’t know. Also I want to tap off the 12V because the 3.3V/2.5V regulators on the ECP5 board don’t seem to have lots of margin for added loads.</p>
+<p>I’m thinking of feeding that 12V to a two-output low-noise switching regulator LT8653S to generate 1.8 and 2.5V. The 2.5V gets used for the interface and GPO (general purpose output) supplies on the AD9363, which aren’t that critical in terms of noise sensitivity.</p>
+<p>The 1.8V doesn’t get used directly but instead I feed it into two separate ADP1754 low-noise LDOs, and each of the LDOs feeds a different set of power supply pins on the AD9363, like the reference manual suggests. Also I’m thinking of doing what’s done in the <a href="https://wiki.analog.com/university/tools/pluto/hacking/hardware">ADALM-PLUTO</a> and using an ADM7160 ultra-low-noise LDO to power the oscillator.</p>
+<p>Actually, I’m sort of reconsidering using that evaluation board due to signal integrity reasons (this Analog Devices <a href="https://wiki.analog.com/resources/eval/user-guides/adrv936x/introduction">webpage</a> states that the CMOS drivers in the AD9363 are purposefully weak and recommends using LVDS instead, and I have no idea how to use LVDS) and instead making my own board from scratch with an ECP5 <em>and</em> an AD9363. It’s not like there’s a lot more to keeping the ECP5 happy than there is for the AD9363 – it’s just power supplies and decoupling capacitors. I think I’ll do it, it looks like a fun challenge!</p>
+<p>Also I’m using a draft version of DO-260A (which I found on the internet) as reference for all of this. If you can get me DO-260B and/or DO-181E (or the EUROCAE equivalents) I’d be very happy. RTCA charges <strong>a lot</strong> for these documents – to the point that it’s a lot cheaper to actually pay membership fees (which lets you have the documents for free) which I’d absolutely do except they say “membership is restricted to organizations that are doing business in aviation” and I’m not sure I qualify as that.</p>]]></description>
+    <pubDate>Fri, 16 Apr 2021 00:00:00 UT</pubDate>
+    <guid>https://superbaud.org/posts/AD9363-part-1.html</guid>
+    <dc:creator>Kia</dc:creator>
+</item>
+<item>
+    <title>halting and continuing</title>
+    <link>https://superbaud.org/posts/halt-and-continue.html</link>
+    <description><![CDATA[<p>I’ve decided to put my 3-phase motor controller project on hold. I don’t really have the equipment/knowledge/experience to pursue it at the level I want to and I’ve come to terms that there’ll always be plenty of really interesting subjects for which this holds and that it’s better to do work where I <em>can</em> get interesting results done with what I have. Currently, those are my RF projects, so that’s what I’m spending time on.</p>
+<h3 id="gsm">Fun with MATLAB</h3>
+<p>I got a MATLAB Home License and the relevant toolboxes, which has been surprisingly useful since it provides tested implementations of channel models and modulators/demodulators. Previously, I had been trying to make physical-layer simulation software from scratch <em>and</em> validate it, <em>and</em> use it for developing receiver subcomponents. While I do appreciate what I’ve learned from making a channel/fading simulator, I never did quite understand how exactly to implement the Doppler model and I’ve been making significantly more progress now that I can use MATLAB and its Communications Toolbox as a source for golden/reference implementations. After all, people who work in industry use these tools all the time, so why shouldn’t I?</p>
+<p>There’s a bunch of subcomponents in a full-featured continuous-phase modulation<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> receiver:</p>
+<ul>
+<li>digital frontend: corrects for imperfections such as DC offset, I/Q imbalance, coarse frequency error</li>
+<li>feedforward channel estimation: estimates the channel impulse response based on known symbols</li>
+<li>channel shortening prefilter: concentrates the energy of the effective channel impulse response in the initial taps, without causing noise enhancement</li>
+<li>interference cancellation / space-time adaptive filters: nulls out co-channel interference</li>
+<li>trellis-style equalizer: given a channel impulse response, what’s the most likely sequence of symbols that led to the observed channel output?</li>
+<li>channel coding decoder: given the output symbols (or log-likelihood-ratios) from the equalizer, what bits were fed into the channel coder?</li>
+</ul>
+<p>For each of those subcomponents, there’s plenty of subtle implementation details and even different mathematical approaches that can be used. For instance, the channel prefiltering can be done via with a linear prediction filter or by spectral factorization of the channel impulse response into an all-pass and minimum-phase component. The trellis-style equalizer can be expressed in the Ungerboeck and Forney formulations and I still don’t understand exactly why (or if) they’re equivalent or how exactly to construct the branch metrics or matched filter in front of the equalizer. Also, there’s per-survivor processing, in which the most-likely candidate sequence is continually used by the equalizer to revise the channel impulse response estimate.</p>
+<p>Rather than jumping straight to trying to implement all of these, I’ve been playing around in MATLAB just trying to get the math to work (and comparing different approaches). For example, I had already implemented a GMSK modulator and used it to try correlation-based channel estimation in Python with some GSM midamble training sequences. In MATLAB I’ve been trying out least-squares channel estimation, understanding exactly how it works theoretically, looking at what coefficients go into which matrix/vector, and looking at its performance with various levels of noise. I’m going to do similar with the digital frontend, prefilter, equalizer, and channel decoder to gain sufficient theoretical background and intuition to go into the implementation phase.</p>
+<figure>
+<img src="../images/matlab_LS_cir_0.png" alt="" /><figcaption>creating the Toeplitz matrix based on the transmitted signal (a GSM training sequence, but without the GSM transmit filter)</figcaption>
+</figure>
+<figure>
+<img src="../images/matlab_LS_cir_1.png" alt="" /><figcaption>and doing the least-squares</figcaption>
+</figure>
+<h3 id="xpdr">Purple PCBs and dynamic range quandaries</h3>
+<p>I designed a PCB for the 1030MHz transponder receiver with a Mini-Circuits lowpass filter, coupling capacitors, ESD protection, and using edge-mount SMA connectors and grounded coplanar waveguide for the transmission lines. Kicad screenshots and photos of the unassembled boards and stencil are at the bottom of the page. I will populate it with components and have it tested on a friend’s vector network analyzer to verify that the impedance is close enough to 50 ohms.</p>
+<p>A Mode-A/C/S receiver is subject to pretty strict requirements. It has to function over a large dynamic range, it has to preserve phase to decode the DPSK burst, and it has to preserve enough amplitude information for the receiver to compare the pulse amplitudes with the Minimum Triggering Level, and with each other (sidelobe suppression). Since the pulses are submicrosecond, I cannot use the actual AGC function of a standard RF-to-IQ-samples RFIC, and since phase must be preserved, a straighforward demodulating log amp is inapplicable.</p>
+<p>Nevertheless, I came up with several candidate approaches:</p>
+<ol type="1">
+<li>a downconverter whose output passes into a log amp with a separate limiter output (AD641 / AD8306 / AD8309), then ADC the log video (for amplitude) and ADC the limiter output (for phase)</li>
+<li>fast variable attenuator in the signal chain controlled by the FPGA, to allow for per-pulse “AGC”</li>
+<li>using a fully-integrated RFIC like AD9361 but adjusting the internal gain parameters for some intentional power-compression / limiting action, since i don’t need to preserve all the amplitude information, just enough to compare pulses with MTL and each other</li>
+<li>Doing the same except with discrete RF/IF amplifiers</li>
+</ol>
+<p>Rather than deciding now which option to select, I’m going to try and make a quick-and-dirty prototype that intentionally does not meet the dynamic range requirements but that <em>does</em> incorporate all the relevant parts of the signal chain (RF frontend, downconverter and LO, IF filters, ADC, FPGA), in order to have <em>something</em> working such that I can start working on the actual demodulation code.</p>
+<figure>
+<img src="../images/schematic.png" alt="" /><figcaption>Schematic in KiCad</figcaption>
+</figure>
+<figure>
+<img src="../images/traces.png" alt="" /><figcaption>Detail around the low-pass filter</figcaption>
+</figure>
+<figure>
+<img src="../images/3Drender.png" alt="" /><figcaption>3D render in KiCad</figcaption>
+</figure>
+<figure>
+<img src="../images/boards.jpeg" alt="" /><figcaption>Boards, courtesy of OSH Park</figcaption>
+</figure>
+<figure>
+<img src="../images/stencil.jpeg" alt="" /><figcaption>Solder paste stencil from OSH Stencils</figcaption>
+</figure>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>I’m trying to make a GSM/EDGE baseband because of the availability of test equipment and documentation, but there’s other systems that use continuous-phase modulations, such as aerospace telemetry and certain tactical data links.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>]]></description>
+    <pubDate>Thu, 04 Feb 2021 00:00:00 UT</pubDate>
+    <guid>https://superbaud.org/posts/halt-and-continue.html</guid>
+    <dc:creator>Kia</dc:creator>
+</item>
+<item>
+    <title>PCBs and PCB accessories</title>
+    <link>https://superbaud.org/posts/pcbs-and-pcb-accessories.html</link>
+    <description><![CDATA[<p>Sorry for the lack of blog post this week, I’ve been busy trying to set up a workspace and procure equipment to work with PCBs. I had already bought a toaster oven to use as a reflow oven but I hadn’t been able to operate it since I needed a way to evacuate flux fumes (since I have a rather strong preference to not have flux fumes in my bedroom). I’ve ordered a fan with appropriate diameter, a metal hose, and also steel plates to make an enclosure (sorta like a fume hood) around the toaster oven / hot air station / soldering iron; with the idea that the fan will be able to suck air from the enclosure and blow the air through the hose and eventually, out the window.</p>
+<p>I’ve also ordered a “microscope” (actually just a camera that outputs HDMI, let’s hope it doesn’t have too much lag) so I can place 0402’s, a thermocouple (to calibrate the toaster oven), and also bolts / nuts / brackets / drill bit / a hole saw / steel bars to assemble everything together.</p>]]></description>
+    <pubDate>Wed, 21 Oct 2020 00:00:00 UT</pubDate>
+    <guid>https://superbaud.org/posts/pcbs-and-pcb-accessories.html</guid>
+    <dc:creator>Kia</dc:creator>
+</item>
+<item>
+    <title>Design decisions</title>
+    <link>https://superbaud.org/posts/design-decisions.html</link>
+    <description><![CDATA[<p>So I’d been wanting to design and build a 3-phase FPGA-powered motor controller for an embarrassingly long while; but I’m finally getting around to it. I’m halfway through deciding what parts I’m gonna use; here’s what i have so far:</p>
+<ul>
+<li><p>ice40hx8k FPGA.</p></li>
+<li><p>isolated delta-sigma modulators (like the ADuM7702) to do current/voltage sensing (on the DC link and on each of the motor phases). this lets me digitize the signal as soon as possible (no long analog wires walking across the power side or the digital side or crossing the isolation boundary), but also lets me do the filtering/downsampling in the FPGA. which lets you easily <a href="https://www.analog.com/en/analog-dialogue/articles/optimized-sigma-delta-modulated-current-measurement-for-motor-control.html">synchronize</a> the measurement point at an arbitrary point in the switching waveform, which should let you reduce the amount of switching noise that gets into the measurements.</p></li>
+<li><p>I havent decided which specific gate driver yet, but it’s probably going to be one of the galvanically isolated ones like Infineon or Analog makes. I don’t know enough to mess around with pulse transformers or anything like that.</p></li>
+<li><p>As for the actual power transistors, I think I’ll go with some power silicon MOSFETs that are fast enough, and can withstand a couple multiples of the highest voltages/currents that my bench power supply can give. I don’t think I yet have to reach for the higher-end stuff like IGBTs or SiC/GaN MOSFETs, not at the power I’m going to be running my prototype at.</p></li>
+<li><p>For the high-side gate drive bias I’m just going to use one of those isolated power supply modules (like the <a href="https://www.murata.com/products/productdata/8807029964830/kdc-mgj1.pdf?1597759215000">MGJ1</a> series from Murata), I know you can do tricks with a little bootstrap capacitor that a diode charges with a low-voltage rail when the switch node is at ground (while the low-side switch conducts) and then powering the high-side gate driver with that capacitor; but for my prototype I want to reduce the moving parts and I’d rather just power the high-side gate driver with an isolated DC-DC.</p></li>
+<li><p>I can power the analog side of the isolated delta-sigma modulator (the one that measures the motor phase current) with a LDO connected to the high-side gate driver’s bias; since that voltage is always a small constant voltage away from the switch node’s voltage (which is where the current shunt is connected, between the node and the motor). At least that’s my understanding of things. Perhaps I grievously misunderstood something.</p></li>
+<li><p>I don’t actually know how to cope with the FPGA’s I/O behavior while it’s being configured. The ice40 datasheet states that:</p></li>
+</ul>
+<blockquote>
+<p>“The default configuration of the I/O pins in a device prior to configuration is tri-stated with a weak pull-up to VCCIO. The I/O pins will maintain the pre-configuration state until VCC and VCCIO (for I/O banks containing configuration I/Os) have reached levels, at which time the I/Os will take on the software user-configured settings only after a proper download/configuration.”</p>
+</blockquote>
+<blockquote>
+<p>but I don’t know exactly how to deal with those “tristated with weak pull-up” outputs so that they won’t cause the gate drivers to think that they need to turn on the FETs. I guess there is the option of having some glue logic between the FPGA and the gate drivers, but perhaps I might be able to override the internal pull-ups with a stronger external pull-down to keep the outputs low until the gateware actually commands the outputs.</p>
+</blockquote>
+<p>Anyway, that’s where I am right now. I think I’m going to do only one half-bridge in the first PCB I make, so I can test it in isolation. Once I have the bias power supplies all working, the delta-sigma modulators making good digital waveforms, the gate drivers driving the power FETs correctly, and the FPGA talking with the gate drivers, I’ll do a PCB with three of the half-bridges, test them all together, and then make them output three 120-degree separated sine waves. Then, who knows, maybe I’ll have gotten around to buying a motor by then ^^;</p>]]></description>
+    <pubDate>Thu, 08 Oct 2020 00:00:00 UT</pubDate>
+    <guid>https://superbaud.org/posts/design-decisions.html</guid>
+    <dc:creator>Kia</dc:creator>
+</item>
+<item>
+    <title>Returns</title>
+    <link>https://superbaud.org/posts/returns.html</link>
+    <description><![CDATA[<p>I want to start off this post by thanking everyone who has supported me – on Patreon and elsewhere. Your financial support was instrumental in letting me acquire enough experience with FPGAs and hardware-description language programming to get paid work as an independent contractor doing FPGA design. I have designed, implemented (in nMigen, the least painful HDL I’ve tried), and am currently testing a specialized FPGA core which accelerates operations on certain data structures. The core I designed uses a well-known algorithm – but is implemented in a way that exploits the inherent parallelism of an FPGA and is thus radically different from anything you’ll find<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> in a textbook or in the literature. I have designed a testbench to randomly generate testcases and verify that the core generates correct output and I am also in the process of examining possibilities for pipelining the section of the design that contains the most combinatorial logic.</p>
+<p>Lately, I’ve been really wanting to get back to working on my personal projects that involve DSP/SDR. Indeed, signals processing and wireless communication is what had initially started my interest in FPGAs. I think I had stopped working on those because I was frustrated by my insufficient background in signal processing theory. To address this deficiency, I have been getting up to speed on the math of signal processing and especially statistical signal processing, and I think I am ready to dive back in. By that, I’m not just referring to reading books and papers about the subjects, but significant and focused material work – making simulation software, writing HDL, and of course selecting parts, and designing/assembling/testing PCBs.</p>
+<p>Another issue I had while working on those projects was that I didn’t have an effective and convenient way to share what I had done. This made it harder to share my progress and more difficult to get to know other people working in this domain. This made work a lot less satisfying than it’d otherwise be. My plan is to use this blog as a sort of lab notebook, where I post what I’m doing (whether it works or not), the difficulties I’ve run into, and questions and uncertainties about proceeding further. This blog, which I can easily update by editing plaintext files, is much more appropriate for me (and any readers) than posting my progress on patreon, via twitter posts, or github commits. This will enable me to make regular (once a week or so) updates in as much depth and formality as is appropriate.</p>
+<p>While I indeed do want to design and implement FPGA-based signals-processing/communications systems to build up a portfolio of work in this field (and develop experience and skills), it’s not my only motivation. I am specifically interested in making all my work open-source, so as to provide a reference for others to rely upon. Since I have never had the opportunity to take any course in anything programming/electronics/signals-processing/FPGA-related, looking at existing open-source work was a significant part of how I got familiarized with these technical subjects; and I wish to pay it forward. I will try to err on the side of making prototypes and posting results often and early; rather than aiming for perfection on the first try, so as to not get stuck in trying to find the absolute optimal decision for a design choice.</p>
+<p>I would be very grateful if you considered supporting me to help me achieve this. While I do have income from the contract work I am doing, it’s covering cost of living and paying off medical debt; and not towards disposable income. Your support will let me put in significant time and effort working on my personal projects. Less financial precarity will let me be significantly less stressed and more productive. For instance, getting prototype PCBs made is a lot less fraught when I don’t have to worry about the cost of the board and parts if I end up needing a respin. You can support me via <a href="https://www.patreon.com/user?u=12717330">patreon</a>, with any of the cryptocurrency addresses in the <a href="/contact.html">contact</a> page, or email me to get an email address for paypal. I am also open to being sponsored to carry out specific open-source work, or being paid to work on closed-source projects; please get in touch with me if you are interested. Also, feel free to comment on my posts (via email or twitter) if you have something to say that I can learn from; I always enjoy talking with people who know a lot about things I’m working on.</p>
+<p>To [re-]start this off, I will be designing a PCB to allow an ice40 FPGA to interface with a three-phase brushless DC motor. Naturally, this includes six power FETs (and the gate drivers) – two for each phase, but also circuitry to measure the exact voltage on each of the motor’s phases, the voltage on the DC link, the total current flowing into the DC link and also the current flowing in/out of the motor on each of the three<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> phases. I’ll see you next week, when I’ll post whatever progress I have made on this!</p>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>or at least, that I’ve managed to find. I am <strong>certain</strong> I am not the first to discover this trick.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2" role="doc-endnote"><p>You might say, “ah, but you don’t <em>actually</em> need three current sensors for the motor’s phases” and you’d be right. Unless there is a fault, you can indeed assume that the total sum of the current going in and out of the motor’s three terminals is indeed zero. However, I do want to get real data in order to be able to design digital filters that ingest this sort of raw sensor data in order to filter out noise and compensate for sensor imperfections such as nonlinearity and offsets. Eventually I would really like to design a fault-tolerant/high-reliability motor controller and the most intimidating part of that is how exactly to process current/voltage/angle sensor data to allow for fast trip detection and detection/isolation of failed sensors.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>]]></description>
+    <pubDate>Wed, 30 Sep 2020 00:00:00 UT</pubDate>
+    <guid>https://superbaud.org/posts/returns.html</guid>
+    <dc:creator>Kia</dc:creator>
+</item>
+
+    </channel>
+</rss>

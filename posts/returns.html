@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Returns</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link href="../rss.xml" rel="alternate" type="application/rss+xml">
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../index.html">Home</a>
+            </div>
+            <nav>
+                <a href="../about.html">About</a>
+                <a href="../blog.html">Blog</a>
+                <a href="https://www.patreon.com/user?u=12717330">Patreon</a>
+                <a href="../projects.html">Projects</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h3>Returns</h1>
+            <article>
+    <section class="header">
+        Posted on September 30, 2020
+        
+        
+    </section>
+    <section>
+        <p>I want to start off this post by thanking everyone who has supported me – on Patreon and elsewhere. Your financial support was instrumental in letting me acquire enough experience with FPGAs and hardware-description language programming to get paid work as an independent contractor doing FPGA design. I have designed, implemented (in nMigen, the least painful HDL I’ve tried), and am currently testing a specialized FPGA core which accelerates operations on certain data structures. The core I designed uses a well-known algorithm – but is implemented in a way that exploits the inherent parallelism of an FPGA and is thus radically different from anything you’ll find<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> in a textbook or in the literature. I have designed a testbench to randomly generate testcases and verify that the core generates correct output and I am also in the process of examining possibilities for pipelining the section of the design that contains the most combinatorial logic.</p>
+<p>Lately, I’ve been really wanting to get back to working on my personal projects that involve DSP/SDR. Indeed, signals processing and wireless communication is what had initially started my interest in FPGAs. I think I had stopped working on those because I was frustrated by my insufficient background in signal processing theory. To address this deficiency, I have been getting up to speed on the math of signal processing and especially statistical signal processing, and I think I am ready to dive back in. By that, I’m not just referring to reading books and papers about the subjects, but significant and focused material work – making simulation software, writing HDL, and of course selecting parts, and designing/assembling/testing PCBs.</p>
+<p>Another issue I had while working on those projects was that I didn’t have an effective and convenient way to share what I had done. This made it harder to share my progress and more difficult to get to know other people working in this domain. This made work a lot less satisfying than it’d otherwise be. My plan is to use this blog as a sort of lab notebook, where I post what I’m doing (whether it works or not), the difficulties I’ve run into, and questions and uncertainties about proceeding further. This blog, which I can easily update by editing plaintext files, is much more appropriate for me (and any readers) than posting my progress on patreon, via twitter posts, or github commits. This will enable me to make regular (once a week or so) updates in as much depth and formality as is appropriate.</p>
+<p>While I indeed do want to design and implement FPGA-based signals-processing/communications systems to build up a portfolio of work in this field (and develop experience and skills), it’s not my only motivation. I am specifically interested in making all my work open-source, so as to provide a reference for others to rely upon. Since I have never had the opportunity to take any course in anything programming/electronics/signals-processing/FPGA-related, looking at existing open-source work was a significant part of how I got familiarized with these technical subjects; and I wish to pay it forward. I will try to err on the side of making prototypes and posting results often and early; rather than aiming for perfection on the first try, so as to not get stuck in trying to find the absolute optimal decision for a design choice.</p>
+<p>I would be very grateful if you considered supporting me to help me achieve this. While I do have income from the contract work I am doing, it’s covering cost of living and paying off medical debt; and not towards disposable income. Your support will let me put in significant time and effort working on my personal projects. Less financial precarity will let me be significantly less stressed and more productive. For instance, getting prototype PCBs made is a lot less fraught when I don’t have to worry about the cost of the board and parts if I end up needing a respin. You can support me via <a href="https://www.patreon.com/user?u=12717330">patreon</a>, with any of the cryptocurrency addresses in the <a href="../contact.html">contact</a> page, or email me to get an email address for paypal. I am also open to being sponsored to carry out specific open-source work, or being paid to work on closed-source projects; please get in touch with me if you are interested. Also, feel free to comment on my posts (via email or twitter) if you have something to say that I can learn from; I always enjoy talking with people who know a lot about things I’m working on.</p>
+<p>To [re-]start this off, I will be designing a PCB to allow an ice40 FPGA to interface with a three-phase brushless DC motor. Naturally, this includes six power FETs (and the gate drivers) – two for each phase, but also circuitry to measure the exact voltage on each of the motor’s phases, the voltage on the DC link, the total current flowing into the DC link and also the current flowing in/out of the motor on each of the three<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a> phases. I’ll see you next week, when I’ll post whatever progress I have made on this!</p>
+<section class="footnotes" role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1" role="doc-endnote"><p>or at least, that I’ve managed to find. I am <strong>certain</strong> I am not the first to discover this trick.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2" role="doc-endnote"><p>You might say, “ah, but you don’t <em>actually</em> need three current sensors for the motor’s phases” and you’d be right. Unless there is a fault, you can indeed assume that the total sum of the current going in and out of the motor’s three terminals is indeed zero. However, I do want to get real data in order to be able to design digital filters that ingest this sort of raw sensor data in order to filter out noise and compensate for sensor imperfections such as nonlinearity and offsets. Eventually I would really like to design a fault-tolerant/high-reliability motor controller and the most intimidating part of that is how exactly to process current/voltage/angle sensor data to allow for fast trip detection and detection/isolation of failed sensors.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Design decisions</title>
+        <link rel="stylesheet" href="../css/default.css" />
+        <link href="../rss.xml" rel="alternate" type="application/rss+xml">
+    </head>
+    <body>
+        <header>
+            <div class="logo">
+                <a href="../index.html">Home</a>
+            </div>
+            <nav>
+                <a href="../about.html">About</a>
+                <a href="../blog.html">Blog</a>
+                <a href="https://www.patreon.com/user?u=12717330">Patreon</a>
+                <a href="../projects.html">Projects</a>
+            </nav>
+        </header>
+
+        <main role="main">
+            <h3>Design decisions</h1>
+            <article>
+    <section class="header">
+        Posted on October  8, 2020
+        
+        
+    </section>
+    <section>
+        <p>So I’d been wanting to design and build a 3-phase FPGA-powered motor controller for an embarrassingly long while; but I’m finally getting around to it. I’m halfway through deciding what parts I’m gonna use; here’s what i have so far:</p>
+<ul>
+<li><p>ice40hx8k FPGA.</p></li>
+<li><p>isolated delta-sigma modulators (like the ADuM7702) to do current/voltage sensing (on the DC link and on each of the motor phases). this lets me digitize the signal as soon as possible (no long analog wires walking across the power side or the digital side or crossing the isolation boundary), but also lets me do the filtering/downsampling in the FPGA. which lets you easily <a href="https://www.analog.com/en/analog-dialogue/articles/optimized-sigma-delta-modulated-current-measurement-for-motor-control.html">synchronize</a> the measurement point at an arbitrary point in the switching waveform, which should let you reduce the amount of switching noise that gets into the measurements.</p></li>
+<li><p>I havent decided which specific gate driver yet, but it’s probably going to be one of the galvanically isolated ones like Infineon or Analog makes. I don’t know enough to mess around with pulse transformers or anything like that.</p></li>
+<li><p>As for the actual power transistors, I think I’ll go with some power silicon MOSFETs that are fast enough, and can withstand a couple multiples of the highest voltages/currents that my bench power supply can give. I don’t think I yet have to reach for the higher-end stuff like IGBTs or SiC/GaN MOSFETs, not at the power I’m going to be running my prototype at.</p></li>
+<li><p>For the high-side gate drive bias I’m just going to use one of those isolated power supply modules (like the <a href="https://www.murata.com/products/productdata/8807029964830/kdc-mgj1.pdf?1597759215000">MGJ1</a> series from Murata), I know you can do tricks with a little bootstrap capacitor that a diode charges with a low-voltage rail when the switch node is at ground (while the low-side switch conducts) and then powering the high-side gate driver with that capacitor; but for my prototype I want to reduce the moving parts and I’d rather just power the high-side gate driver with an isolated DC-DC.</p></li>
+<li><p>I can power the analog side of the isolated delta-sigma modulator (the one that measures the motor phase current) with a LDO connected to the high-side gate driver’s bias; since that voltage is always a small constant voltage away from the switch node’s voltage (which is where the current shunt is connected, between the node and the motor). At least that’s my understanding of things. Perhaps I grievously misunderstood something.</p></li>
+<li><p>I don’t actually know how to cope with the FPGA’s I/O behavior while it’s being configured. The ice40 datasheet states that:</p></li>
+</ul>
+<blockquote>
+<p>“The default configuration of the I/O pins in a device prior to configuration is tri-stated with a weak pull-up to VCCIO. The I/O pins will maintain the pre-configuration state until VCC and VCCIO (for I/O banks containing configuration I/Os) have reached levels, at which time the I/Os will take on the software user-configured settings only after a proper download/configuration.”</p>
+</blockquote>
+<blockquote>
+<p>but I don’t know exactly how to deal with those “tristated with weak pull-up” outputs so that they won’t cause the gate drivers to think that they need to turn on the FETs. I guess there is the option of having some glue logic between the FPGA and the gate drivers, but perhaps I might be able to override the internal pull-ups with a stronger external pull-down to keep the outputs low until the gateware actually commands the outputs.</p>
+</blockquote>
+<p>Anyway, that’s where I am right now. I think I’m going to do only one half-bridge in the first PCB I make, so I can test it in isolation. Once I have the bias power supplies all working, the delta-sigma modulators making good digital waveforms, the gate drivers driving the power FETs correctly, and the FPGA talking with the gate drivers, I’ll do a PCB with three of the half-bridges, test them all together, and then make them output three 120-degree separated sine waves. Then, who knows, maybe I’ll have gotten around to buying a motor by then ^^;</p>
+    </section>
+</article>
+
+        </main>
+
+        <footer>
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </footer>
+    </body>
+</html>
